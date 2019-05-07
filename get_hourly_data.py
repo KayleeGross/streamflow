@@ -19,7 +19,7 @@ def get_hourly_data(fname, new_csv_file):
 
     print(df["VALUE"])
 
-    # Swap BRT out for NAN maybe?
+    # Swap BRT out for NAN maybe
     #df.replace(to_replace = "BRT", value = "NaN")
 
 

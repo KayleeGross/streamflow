@@ -4,17 +4,19 @@ import csv
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import numpy as np
+import time
 
 def get_hourly_Cdec(fname1):
     """
-    Function retireves station info that is used to make headers for Cdec data.
+    Function converts Cdec event data to hourly data.
     Args:
-        fname: string to the path for the Cdec station csv
+    fname: string to the path for the Cdec station csv
     """
     DatetimeFormat = "%Y-%m-%d %H"
 
     df = pd.read_csv(fname1, low_memory=False,
-                 parse_dates=True, delimiter=',', index_col=[4], na_values=['BRT','ART','---'])
+                 parse_dates=True, delimiter=',', index_col=[2], na_values=['BRT','ART','---'])
+
     df['VALUE'] = df['VALUE'].astype(float)
 
     result = df['VALUE'].resample('H').mean()
@@ -24,9 +26,9 @@ def get_hourly_Cdec(fname1):
 
 def get_hourly_additional(fname2):
     """
-    Function retireves station info that is used to make headers for Cdec data.
+    Function converts additional event data to hourly data.
     Args:
-        fname: string to the path for the additional stations csv
+    fname: string to the path for the additional stations csv
     """
     DatetimeFormat = "%Y-%m-%d %H"
 
@@ -47,31 +49,30 @@ def get_hourly_additional(fname2):
 
 def get_hourly_USGS(fname3):
     """
-    Function retireves station info that is used to make headers for USGS data.
+    Function converts event data to hourly data.
     Args:
-    fname: string to the path for the USGS station csv
+    fname3: string to the path for the USGS station csv
     """
     DatetimeFormat = "%Y-%m-%d %H"
 
-    df = pd.read_csv(fname, low_memory=False,
-                      parse_dates=True, delimiter=',', index_col=[4], na_values=[''])
+    df = pd.read_csv(fname3, low_memory=False,
+                             parse_dates=[0], delimiter=',', na_values=[''])
+    df = df.set_index('dt')
 
-    df['VALUE'] = df['VALUE'].astype(float)
-
-    result = df['VALUE'].resample('H').mean()
-
+    result = df.resample('H').mean()
     return result
 
 
+
+
 # variables that will change with each new dataset
-new_csv_file = 'Q6.csv'
-fname1 = '/home/kayleegross/Documents/Basins_streamflow/Tuolumne_data/UCC_event.txt'
-fname2 = '/home/kayleegross/Documents/Basins_streamflow/Tuolumne_data/Tuolumne_additional_6stations.csv'
-fname3 = '/home/kayleegross/Documents/Basins_streamflow/Merced_data/USGS_HIB_event.txt'
+new_csv_file = 'USGS_11224000_H.csv'
+fname1 = '/home/kayleegross/Documents/Basins_streamflow/streamflow_data/11206820_bksjd.csv'
+fname2 = '/home/kayleegross/Documents/Basins_streamflow/Merced_data/USGS_HIB_event.csv'
+fname3 = '/home/kayleegross/Documents/Basins_streamflow/streamflow_data/11224000_1.csv'
 
 # call function
-# df = get_hourly_data(fname1)
 
-df = get_hourly_additional(fname2)
-#print(df[5084:5094])
+df = get_hourly_USGS(fname3)
+
 df.to_csv(new_csv_file)

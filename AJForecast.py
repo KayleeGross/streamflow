@@ -8,45 +8,63 @@ import pandas as pd
 import seaborn as sns
 from datetime import datetime, timedelta
 import os
-
+import requests
+from pandas.plotting import register_matplotlib_converters
 import netCDF4 as nc
-
-# from snowav.utils.wyhr import calculate_date_from_wyhr
-
-# Read in the rainfall, AJ forecasts, and inflow as pandas dataframes.
-df_ppt = pd.read_csv('/home/kayleegross/Documents/tuolumne_river_forecast/forecast_files/DP_precip_thru0625.csv', index_col=0, parse_dates=[0])
-df_forecast = pd.read_csv('/home/kayleegross/Documents/tuolumne_river_forecast/forecast_files/CNRFC_AJ_forecast_thru0730.csv', index_col=0, parse_dates=[0])
-df_runoff = pd.read_csv('/home/kayleegross/Documents/tuolumne_river_forecast/forecast_files/DP_AJ_runoff_thru0625.csv', index_col=0, parse_dates=[0], header=0)
-
-# Read in updated swe and swi data
-df_revised_swi = pd.read_csv('/home/kayleegross/Documents/tuolumne_river_forecast/forecast_files/revised_swi.csv', index_col=0, parse_dates=[0])
-df_swe_swi = pd.read_csv('/home/kayleegross/Documents/tuolumne_river_forecast/forecast_files/swe_ytd_swi.csv', index_col=0, parse_dates=[0])
-df_swe_runoff = pd.read_csv('/home/kayleegross/Documents/tuolumne_river_forecast/forecast_files/swe_ytd_runoff.csv', index_col=0, parse_dates=[0])
+import json
+import io
 
 
+# file paths from openstack
+url_1 = 'http://arsidboi1snowc1:8080/v1/AUTH_24a46c0130aa4d46a1f52a2aaff35fc3/forecast_data/DP_precip_thru0625.csv'
+url_2 = 'http://arsidboi1snowc1:8080/v1/AUTH_24a46c0130aa4d46a1f52a2aaff35fc3/forecast_data/CNRFC_AJ_forecast_thru0730.csv'
+url_3 = 'http://arsidboi1snowc1:8080/v1/AUTH_24a46c0130aa4d46a1f52a2aaff35fc3/forecast_data/DP_AJ_runoff_thru0625.csv'
+url_4 = 'http://arsidboi1snowc1:8080/v1/AUTH_24a46c0130aa4d46a1f52a2aaff35fc3/forecast_data/revised_swi.csv'
+url_5 = 'http://arsidboi1snowc1:8080/v1/AUTH_24a46c0130aa4d46a1f52a2aaff35fc3/forecast_data/swe_ytd_swi.csv'
+url_6 = 'http://arsidboi1snowc1:8080/v1/AUTH_24a46c0130aa4d46a1f52a2aaff35fc3/forecast_data/swe_ytd_runoff.csv'
+
+
+# request files and decode
+r = requests.get(url_1).content
+df_ppt = pd.read_csv(io.StringIO(r.decode('utf-8')), index_col=0, parse_dates=[0])
+
+r = requests.get(url_2).content
+df_forecast = pd.read_csv(io.StringIO(r.decode('utf-8')), index_col=0, parse_dates=[0])
+
+r = requests.get(url_3).content
+df_runoff = pd.read_csv(io.StringIO(r.decode('utf-8')), index_col=0, parse_dates=[0])
+
+r = requests.get(url_4).content
+df_revised_swi = pd.read_csv(io.StringIO(r.decode('utf-8')), index_col=0, parse_dates=[0])
+
+r = requests.get(url_5).content
+df_swe_swi = pd.read_csv(io.StringIO(r.decode('utf-8')), index_col=0, parse_dates=[0])
+
+r = requests.get(url_6).content
+df_swe_runoff = pd.read_csv(io.StringIO(r.decode('utf-8')),index_col=0, parse_dates=[0])
+
+
+# create figure
 fig1 = plt.figure(figsize=(9.85, 7), dpi=150)
 ax = fig1.add_subplot(111)
 ax2 = ax.twinx()
 
-
-# # plot CNRFC data
+# plot forecast data
 ax.plot(df_forecast.index, df_forecast['CNRFC 10%'], 'salmon', label='CNRFC 10%')
 ax.plot(df_forecast.index, df_forecast['CNRFC 50%'], 'powderblue', label='CNRFC 50%')
 ax.plot(df_forecast.index, df_forecast['CNRFC 90%'], 'yellowgreen', label='CNRFC 90%')
 
-# # plot swi and swe
-# df_swi['AF'].plot(kind='line', color='grey', ax=plt.gca(), label='SWI')
+# plot swi and swe
 ax.plot(df_swe_swi.index, df_swe_swi['AF'], 'mediumpurple', label='Cumulative SWI+SWE')
 ax.plot(df_swe_runoff.index, df_swe_runoff['current_swe_ytd_runoff'], 'darkgoldenrod', label='Cumulative Runoff+SWE')
-ax.plot(df_revised_swi.index, df_revised_swi['normalized swi'], 'slategrey', label='Cumulative SWI')
+ax.plot(df_revised_swi.index, df_revised_swi['normalized swi (AF)'], 'slategrey', label='Cumulative SWI')
 
 # plot runoff
-ax.plot(df_runoff.index, df_runoff, 'midnightblue', label='Cumulative Runoff')
+ax.plot(df_runoff.index, df_runoff["Cumulative runoff (AF)"], 'midnightblue', label='Cumulative Runoff')
 
 # plot rainfall
 ax2.bar(df_ppt.index, df_ppt["precip_in"].values, width=1,color='firebrick', label='Don Pedro Rainfall')
 ax2.xaxis_date()
-
 
 # set axis labels and ticks
 ax.set_title('Tuolumne River Forecasts of April through July Runoff (AF)', fontsize=10, loc= 'center')
@@ -54,22 +72,17 @@ ax.set_xlabel('Date of Probabilistic Start', fontsize=10);
 ax.set_ylabel('April through July Runoff (Acre-Feet)', fontsize=10);
 ax2.set_ylabel('Rainfall [in.]', rotation=-90, fontsize=10)
 ax2.yaxis.set_label_coords(1.07, 0.5)
-
-# ax1.tick_params(axis='x', which='both', bottom=False, labelbottom=False)
 ax.xaxis.set_major_locator(mdates.DayLocator(interval=10))
 ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d'))
 ax.set_yticks(125000+np.arange(0, 2625000, step=125000))
 ax.yaxis.set_major_formatter(FuncFormatter(lambda x, p: format(int(x), ',')))
 
-# plt.setp(ax1.xaxis.get_majorticklabels(), rotation=-90 )
+# set params
 ax.tick_params(axis='x', which='minor', bottom=False)
 ax.tick_params('x', rotation=-90, labelsize=7)
 ax.tick_params('y', labelsize=7)
 ax2.tick_params('y', labelsize=7)
-# ax2.tick_params(axis='x', which='both', bottom=False, labelbottom=False)
 ax.grid(linewidth=0.5, alpha=0.5)
-# ax.legend(fontsize=7)
-
 ax.set_xlim(pd.Timestamp('2018-10-01'), pd.Timestamp('2019-09-30'))
 ax.set_ylim(0, 2625000)
 ax2.set_ylim(0, 20)
@@ -114,6 +127,7 @@ for i,date in enumerate(dates):
     ax.axvline(x=date.date(), linestyle=':', linewidth=0.75, color='k', label=lbl)
 
 fig1.legend(fontsize=6, loc="upper left", bbox_to_anchor=(0.75, 0.5))
+
 
 plt.show()
 plt.close()

@@ -10,37 +10,71 @@ from datetime import datetime, timedelta
 import os
 import requests
 from pandas.plotting import register_matplotlib_converters
+register_matplotlib_converters()
 import netCDF4 as nc
 import json
 import io
+import os
 
+
+# file paths from swagger ui
+url_a = 'http://10.200.28.72/api/v1/cnrfc?start_date=2018-10-1&end_date=2019-7-30&station=NDPC1&variable=exceedance90'
+url_b = 'http://10.200.28.72/api/v1/cnrfc?start_date=2018-10-1&end_date=2019-7-30&station=NDPC1&variable=exceedance50'
+url_c = 'http://10.200.28.72/api/v1/cnrfc?start_date=2018-10-1&end_date=2019-7-30&station=NDPC1&variable=exceedance10'
+url_d = 'http://10.200.28.72/api/v1/cnrfc?start_date=2018-10-01&end_date=2019-07-30&variable=aj_raw_obs'
 
 # file paths from openstack
 url_1 = 'http://arsidboi1snowc1:8080/v1/AUTH_24a46c0130aa4d46a1f52a2aaff35fc3/forecast_data/DP_precip_thru0625.csv'
-url_2 = 'http://arsidboi1snowc1:8080/v1/AUTH_24a46c0130aa4d46a1f52a2aaff35fc3/forecast_data/CNRFC_AJ_forecast_thru0730.csv'
-url_3 = 'http://arsidboi1snowc1:8080/v1/AUTH_24a46c0130aa4d46a1f52a2aaff35fc3/forecast_data/DP_AJ_runoff_thru0625.csv'
-url_4 = 'http://arsidboi1snowc1:8080/v1/AUTH_24a46c0130aa4d46a1f52a2aaff35fc3/forecast_data/revised_swi.csv'
-url_5 = 'http://arsidboi1snowc1:8080/v1/AUTH_24a46c0130aa4d46a1f52a2aaff35fc3/forecast_data/swe_ytd_swi.csv'
-url_6 = 'http://arsidboi1snowc1:8080/v1/AUTH_24a46c0130aa4d46a1f52a2aaff35fc3/forecast_data/swe_ytd_runoff.csv'
+url_2 = 'http://arsidboi1snowc1:8080/v1/AUTH_24a46c0130aa4d46a1f52a2aaff35fc3/forecast_data/revised_swi.csv'
+url_3 = 'http://arsidboi1snowc1:8080/v1/AUTH_24a46c0130aa4d46a1f52a2aaff35fc3/forecast_data/swe_ytd_swi.csv'
+url_4 = 'http://arsidboi1snowc1:8080/v1/AUTH_24a46c0130aa4d46a1f52a2aaff35fc3/forecast_data/swe_ytd_runoff.csv'
+
+# request files from swagger ui
+r = requests.get(url_d).json()
+df_runoff = pd.DataFrame(r['cnrfc'], columns=['date', 'aj_raw_obs'])
+df_runoff['aj_raw_obs'] = df_runoff['aj_raw_obs'].rolling(5).mean()
+
+r = requests.get(url_a).json()
+df_forecast_90 = pd.DataFrame(r['cnrfc'], columns=['date', 'exceedance90'])
+
+r = requests.get(url_b).json()
+df_forecast_50 = pd.DataFrame(r['cnrfc'], columns=['date', 'exceedance50'])
+
+r = requests.get(url_c).json()
+df_forecast_10 = pd.DataFrame(r['cnrfc'], columns=['date', 'exceedance10'])
+
+# merge files
+df_forecast = pd.merge(df_forecast_90, df_forecast_50, on= 'date', how ='inner')
+df_forecasts = pd.merge(df_forecast, df_forecast_10, on= 'date', how = 'inner')
+
+# convert TAF to AF
+x = 1000
+
+# make new columns and set equal to old
+df_forecasts['90'] = df_forecasts['exceedance90']*x
+df_forecasts['10'] = df_forecasts['exceedance10']*x
+df_forecasts['50'] = df_forecasts['exceedance50']*x
+df_runoff['aj_raw_obs'] = df_runoff['aj_raw_obs']*x
+
+# drop old columns
+dfnew = df_forecasts.drop(columns=['exceedance90', 'exceedance50', 'exceedance10'])
+
+# set index_col for data frames
+dfnew.set_index(pd.to_datetime(dfnew['date']), inplace=True)
+df_runoff.set_index(pd.to_datetime(df_runoff['date']), inplace=True)
 
 
-# request files and decode
+# request files from openstack
 r = requests.get(url_1).content
 df_ppt = pd.read_csv(io.StringIO(r.decode('utf-8')), index_col=0, parse_dates=[0])
 
 r = requests.get(url_2).content
-df_forecast = pd.read_csv(io.StringIO(r.decode('utf-8')), index_col=0, parse_dates=[0])
-
-r = requests.get(url_3).content
-df_runoff = pd.read_csv(io.StringIO(r.decode('utf-8')), index_col=0, parse_dates=[0])
-
-r = requests.get(url_4).content
 df_revised_swi = pd.read_csv(io.StringIO(r.decode('utf-8')), index_col=0, parse_dates=[0])
 
-r = requests.get(url_5).content
+r = requests.get(url_3).content
 df_swe_swi = pd.read_csv(io.StringIO(r.decode('utf-8')), index_col=0, parse_dates=[0])
 
-r = requests.get(url_6).content
+r = requests.get(url_4).content
 df_swe_runoff = pd.read_csv(io.StringIO(r.decode('utf-8')),index_col=0, parse_dates=[0])
 
 
@@ -50,17 +84,15 @@ ax = fig1.add_subplot(111)
 ax2 = ax.twinx()
 
 # plot forecast data
-ax.plot(df_forecast.index, df_forecast['CNRFC 10%'], 'salmon', label='CNRFC 10%')
-ax.plot(df_forecast.index, df_forecast['CNRFC 50%'], 'powderblue', label='CNRFC 50%')
-ax.plot(df_forecast.index, df_forecast['CNRFC 90%'], 'yellowgreen', label='CNRFC 90%')
+ax.plot(dfnew.index, dfnew['90'], 'salmon', label='exceedance90')
+ax.plot(dfnew.index,dfnew['50'], 'powderblue', label='exceedance50')
+ax.plot(dfnew.index,dfnew['10'], 'yellowgreen', label='exceedance10')
+ax.plot(df_runoff.index, df_runoff['aj_raw_obs'], 'midnightblue', label='Cumulative Runoff')
 
 # plot swi and swe
 ax.plot(df_swe_swi.index, df_swe_swi['AF'], 'mediumpurple', label='Cumulative SWI+SWE')
 ax.plot(df_swe_runoff.index, df_swe_runoff['current_swe_ytd_runoff'], 'darkgoldenrod', label='Cumulative Runoff+SWE')
 ax.plot(df_revised_swi.index, df_revised_swi['normalized swi (AF)'], 'slategrey', label='Cumulative SWI')
-
-# plot runoff
-ax.plot(df_runoff.index, df_runoff["Cumulative runoff (AF)"], 'midnightblue', label='Cumulative Runoff')
 
 # plot rainfall
 ax2.bar(df_ppt.index, df_ppt["precip_in"].values, width=1,color='firebrick', label='Don Pedro Rainfall')
@@ -87,9 +119,8 @@ ax.set_xlim(pd.Timestamp('2018-10-01'), pd.Timestamp('2019-09-30'))
 ax.set_ylim(0, 2625000)
 ax2.set_ylim(0, 20)
 
-
 # path to flights netcdf
-file = '/mnt/snow_home/lidar_depths_wy2019.nc'
+file = './lidar_depths_wy2019.nc'
 
 # open the file
 ncf = nc.Dataset(file, 'r')
@@ -127,7 +158,5 @@ for i,date in enumerate(dates):
     ax.axvline(x=date.date(), linestyle=':', linewidth=0.75, color='k', label=lbl)
 
 fig1.legend(fontsize=6, loc="upper left", bbox_to_anchor=(0.75, 0.5))
-
-
 plt.show()
 plt.close()
